@@ -515,7 +515,10 @@ class OllamaLLM(BaseLLM):
                     generation_info={
                         **additional_kwargs,
                         **(
-                            {**dict(stream_resp), "finish_reason": stream_resp.get("done_reason")}
+                            {
+                                **dict(stream_resp),
+                                "finish_reason": stream_resp.get("done_reason"),
+                            }
                             if stream_resp.get("done") is True
                             else {}
                         ),
@@ -547,7 +550,10 @@ class OllamaLLM(BaseLLM):
                     generation_info={
                         **additional_kwargs,
                         **(
-                            {**dict(stream_resp), "finish_reason": stream_resp.get("done_reason")}
+                            {
+                                **dict(stream_resp),
+                                "finish_reason": stream_resp.get("done_reason"),
+                            }
                             if stream_resp.get("done") is True
                             else {}
                         ),
