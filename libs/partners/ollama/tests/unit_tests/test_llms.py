@@ -90,3 +90,60 @@ async def test_acreate_generate_stream_raises_when_client_none() -> None:
         with pytest.raises(RuntimeError, match="async client is not initialized"):
             async for _ in llm._acreate_generate_stream("Hello"):
                 pass
+
+
+def test_stream_finish_reason_only_on_final_chunk() -> None:
+    """`finish_reason` is set only on the final chunk and uses `done_reason`."""
+    llm = OllamaLLM(model=MODEL_NAME)
+    mock_stream = [
+        {"response": "Hi", "done": False},
+        {"response": " there", "done": False},
+        {"response": "!", "done": True, "done_reason": "stop"},
+    ]
+    with patch.object(llm, "_create_generate_stream") as mock_stream_method:
+        mock_stream_method.return_value = iter(mock_stream)
+        chunks = list(llm._stream("prompt"))
+
+    assert len(chunks) == 3
+    assert "finish_reason" not in (chunks[0].generation_info or {})
+    assert "finish_reason" not in (chunks[1].generation_info or {})
+    assert chunks[2].generation_info is not None
+    assert chunks[2].generation_info["finish_reason"] == "stop"
+
+
+def test_stream_finish_reason_uses_done_reason_not_stop_tokens() -> None:
+    """`finish_reason` reflects Ollama's `done_reason`, not the configured `stop`."""
+    llm = OllamaLLM(model=MODEL_NAME, stop=["END"])
+    mock_stream = [
+        {"response": "Hi", "done": True, "done_reason": "length"},
+    ]
+    with patch.object(llm, "_create_generate_stream") as mock_stream_method:
+        mock_stream_method.return_value = iter(mock_stream)
+        chunks = list(llm._stream("prompt"))
+
+    assert chunks[0].generation_info is not None
+    assert chunks[0].generation_info["finish_reason"] == "length"
+
+
+async def test_astream_finish_reason_only_on_final_chunk() -> None:
+    """Async: `finish_reason` is set only on the final chunk and uses `done_reason`."""
+    llm = OllamaLLM(model=MODEL_NAME)
+    mock_stream = [
+        {"response": "Hi", "done": False},
+        {"response": " there", "done": False},
+        {"response": "!", "done": True, "done_reason": "stop"},
+    ]
+
+    async def aiter_mock() -> Any:
+        for item in mock_stream:
+            yield item
+
+    with patch.object(llm, "_acreate_generate_stream") as mock_stream_method:
+        mock_stream_method.return_value = aiter_mock()
+        chunks = [chunk async for chunk in llm._astream("prompt")]
+
+    assert len(chunks) == 3
+    assert "finish_reason" not in (chunks[0].generation_info or {})
+    assert "finish_reason" not in (chunks[1].generation_info or {})
+    assert chunks[2].generation_info is not None
+    assert chunks[2].generation_info["finish_reason"] == "stop"
